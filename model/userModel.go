@@ -6,11 +6,16 @@ import (
 
 type User struct {
 	UserID     primitive.ObjectID `bson:"_id"`
-	Email      string             `json:"email" validate:"email,required"`
-	Password   string             `json:"password" validate:"required"`
-	FullName   string             `json:"full_name" validate:"required"`
-	UserType   string             `json:"user_type" validate:"required,eq=ADMIN|eq=USER"`
-	UserStatus int                `json:"user_status"`
-	CreatedAt  int64              `json:"created_at"`
-	UpdatedAt  int64              `json:"updated_at"`
+	Email      string             `json:"email" validate:"email,required" bson:"email"`
+	Password   string             `json:"password" validate:"required" bson:"password"`
+	FullName   string             `json:"full_name" validate:"required" bson:"full_name"`
+	UserType   string             `json:"user_type" validate:"required,eq=ADMIN|eq=USER" bson:"user_type"`
+	UserStatus int                `json:"user_status" bson:"user_status"`
+	CreatedAt  int64              `json:"created_at" bson:"created_at"`
+	UpdatedAt  int64              `json:"updated_at" bson:"updated_at"`
+}
+
+type CreateAccount struct {
+	User    User    `json:"user"`
+	Account Account `json:"account"`
 }
