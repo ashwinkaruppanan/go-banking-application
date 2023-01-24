@@ -18,8 +18,8 @@ import (
 )
 
 var userCollection *mongo.Collection = database.OpenCollection(database.Client, "users")
-var tokenCollection *mongo.Collection = database.OpenCollection(database.Client, "token")
-var accountCollection *mongo.Collection = database.OpenCollection(database.Client, "account")
+
+// var tokenCollection *mongo.Collection = database.OpenCollection(database.Client, "token")
 
 func HashPassword(password string) (hashPassword string) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -41,9 +41,7 @@ func VerifyPassword(loginPassword string, dbPassword string) bool {
 func Signup() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
-		var newUser model.CreateAccount
-		var newUserDetails model.User
-		var newAccountDetails model.Account
+		var newUser *model.User
 
 		if err := c.BindJSON(&newUser); err != nil {
 			log.Panic(err)
@@ -51,91 +49,40 @@ func Signup() gin.HandlerFunc {
 
 		validateErr := validator.New().Struct(newUser)
 		if validateErr != nil {
-			log.Panic(validateErr)
+			c.JSON(http.StatusBadRequest, validateErr)
+			return
 		}
 
-		newUserDetails.UserID = primitive.NewObjectID()
-		newUserDetails.Email = newUser.User.Email
-		newUserDetails.Password = HashPassword(newUser.User.Password)
-		newUserDetails.FullName = newUser.User.FullName
-		newUserDetails.UserType = newUser.User.UserType
-		newUserDetails.UserStatus = 0
-		newUserDetails.CreatedAt = time.Now().Unix()
-		newUserDetails.UpdatedAt = time.Now().Unix()
-
-		newAccountDetails.AccountID = primitive.NewObjectID()
-		newAccountDetails.UserID = newUserDetails.UserID
-		newAccountDetails.AccountType = newUser.Account.AccountType
-		newAccountDetails.Balance = newUser.Account.Balance
-		newAccountDetails.AccountStatus = "INACTIVE"
-		newAccountDetails.CreatedAt = time.Now().Unix()
-		newAccountDetails.CreatedAt = time.Now().Unix()
-
+		newUser.UserID = primitive.NewObjectID()
+		if newUser.UserType == "ADMIN" {
+			newUser.UserStatus = 1
+		} else {
+			newUser.UserStatus = 0
+		}
+		newUser.CreatedAt = time.Now().Unix()
+		newUser.UpdatedAt = time.Now().Unix()
+		newUser.Password = HashPassword(newUser.Password)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
-		count, err := userCollection.CountDocuments(ctx, bson.M{"email": newUserDetails.Email})
+		count, err := userCollection.CountDocuments(ctx, bson.M{"email": newUser.Email})
+		defer cancel()
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer cancel()
 
 		if count > 0 {
 			c.JSON(http.StatusConflict, "Email already registered with some other account")
 			return
 		}
 
-		_, err = userCollection.InsertOne(ctx, newUserDetails)
-		if err != nil {
-			log.Panic(err)
-		}
+		_, err = userCollection.InsertOne(ctx, newUser)
 		defer cancel()
 
-		_, err = accountCollection.InsertOne(ctx, newAccountDetails)
-		defer cancel()
 		if err != nil {
-			log.Panic(err)
+			log.Fatal(err)
 		}
 
-		c.JSON(http.StatusOK, "ok")
-
-		// 	var newUser *model.User
-
-		// 	if err := c.BindJSON(&newUser); err != nil {
-		// 		log.Panic(err)
-		// 	}
-
-		// 	validateErr := validator.New().Struct(newUser)
-		// 	if validateErr != nil {
-		// 		c.JSON(http.StatusBadRequest, validateErr)
-		// 		return
-		// 	}
-
-		// 	newUser.UserID = primitive.NewObjectID()
-		// 	newUser.UserStatus = 0
-		// 	newUser.CreatedAt = time.Now().Unix()
-		// 	newUser.UpdatedAt = time.Now().Unix()
-		// 	newUser.Password = HashPassword(newUser.Password)
-		// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-		// 	count, err := userCollection.CountDocuments(ctx, bson.M{"email": newUser.Email})
-		// 	defer cancel()
-		// 	if err != nil {
-		// 		log.Fatal(err)
-		// 	}
-
-		// 	if count > 0 {
-		// 		c.JSON(http.StatusConflict, "Email already registered with some other account")
-		// 		return
-		// 	}
-
-		// 	_, err = userCollection.InsertOne(ctx, newUser)
-		// 	defer cancel()
-
-		// 	if err != nil {
-		// 		log.Fatal(err)
-		// 	}
-
-		// 	c.JSON(http.StatusOK, newUser)
+		c.JSON(http.StatusOK, newUser)
 	}
 
 }
@@ -166,16 +113,16 @@ func Login() gin.HandlerFunc {
 
 		token := helper.GenerateToken(dbDetails.FullName, dbDetails.UserID.Hex(), dbDetails.UserType)
 		timeNow := time.Now()
-		tokenDB := &model.Token{
-			UserID:    dbDetails.UserID,
-			Token:     token,
-			CreatedAt: timeNow.Unix(),
-		}
-		_, err = tokenCollection.InsertOne(ctx, tokenDB)
-		defer cancel()
-		if err != nil {
-			log.Fatal(err)
-		}
+		// tokenDB := &model.Token{
+		// 	UserID:    dbDetails.UserID,
+		// 	Token:     token,
+		// 	CreatedAt: timeNow.Unix(),
+		// }
+		// _, err = tokenCollection.InsertOne(ctx, tokenDB)
+		// defer cancel()
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
 		c.SetCookie("token", token, int(timeNow.Add(24*time.Hour).Unix()), "/", "localhost", false, true)
 
 	}
@@ -184,14 +131,14 @@ func Login() gin.HandlerFunc {
 
 func Logout() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		cxt, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		token, err := c.Request.Cookie("token")
-		if err != nil {
-			log.Fatal(err)
-		}
+		// cxt, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		// token, err := c.Request.Cookie("token")
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
 
-		tokenCollection.DeleteOne(cxt, bson.M{"token": token.Value})
-		defer cancel()
+		// tokenCollection.DeleteOne(cxt, bson.M{"token": token.Value})
+		// defer cancel()
 
 		c.SetCookie("token", "", -1, "/", "", false, true)
 

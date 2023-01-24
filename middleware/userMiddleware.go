@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"time"
 
 	"ashwin.com/go-banking-project/helper"
 	"github.com/gin-gonic/gin"
@@ -29,12 +30,7 @@ func UserMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if claims.UserType != "USER" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "users only route"})
-			c.Abort()
-			return
-		}
-
+		c.SetCookie("user_id", claims.Uid, int(time.Now().Add(5*time.Minute).Unix()), "/", "localhost", false, true)
 		c.Next()
 	}
 }

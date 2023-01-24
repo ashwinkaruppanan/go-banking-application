@@ -9,9 +9,8 @@ import (
 )
 
 type TokenDetails struct {
-	UserType string
-	Uid      string
-	Name     string
+	Uid  string
+	Name string
 	jwt.StandardClaims
 }
 
@@ -19,9 +18,9 @@ var secretString string = os.Getenv("SECRET_KEY")
 
 func GenerateToken(userName string, UserID string, UserType string) (token string) {
 	claims := &TokenDetails{
-		UserType: UserType,
-		Uid:      UserID,
-		Name:     userName,
+
+		Uid:  UserID,
+		Name: userName,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
 		},
