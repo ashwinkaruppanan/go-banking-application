@@ -273,18 +273,54 @@ func Transfer() gin.HandlerFunc {
 			log.Panic(err)
 		}
 
-		// newTransaction.UserID = receiverDetails.UserID
-		// newTransaction.Operation = "CREDIT"
-
-		// _, err = transactionCollection.InsertOne(ctx, newTransaction)
-		// defer cancel()
-		// if err != nil {
-		// 	log.Panic(err)
-		// }
-
 		c.JSON(http.StatusOK, gin.H{
 			"Transaction ID": newTransactionData.TransactionID,
 		})
 
+	}
+}
+
+func ViewTransaction() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		userID := c.GetString("user_id")
+		userIDObject, err := primitive.ObjectIDFromHex(userID)
+		if err != nil {
+			log.Panic(err)
+		}
+		var userDetails *model.Account
+		if err := accountCollection.FindOne(ctx, bson.M{"user_id": userIDObject}).Decode(&userDetails); err != nil {
+			log.Panic(err)
+		}
+		defer cancel()
+
+		var debit []*model.Transaction
+		var credit []*model.Transaction
+		cursor, err := transactionCollection.Find(ctx, bson.M{"src_account": userDetails.AccountID})
+		defer cancel()
+		if err != nil {
+			log.Panic(err)
+		}
+
+		if err = cursor.All(ctx, &debit); err != nil {
+			log.Panic(err)
+		}
+
+		cursor, err = transactionCollection.Find(ctx, bson.M{"des_account": userDetails.AccountID})
+		defer cancel()
+		if err != nil {
+			log.Panic(err)
+		}
+
+		if err = cursor.All(ctx, &credit); err != nil {
+			log.Panic(err)
+		}
+
+		for _, val := range credit {
+			val.Operation = "CREDIT"
+		}
+
+		debit = append(debit, credit...)
+		c.JSON(http.StatusOK, debit)
 	}
 }

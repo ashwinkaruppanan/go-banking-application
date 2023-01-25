@@ -13,4 +13,5 @@ func UserRouter(router *gin.Engine) {
 	router.GET("/api/v1/user/", controller.GetUser())
 	router.PUT("/api/v1/user/", controller.UpdateUser())
 	router.POST("/api/v1/user/transfer/", controller.Transfer())
+	router.GET("/api/v1/user/transaction/", controller.ViewTransaction())
 }
