@@ -11,3 +11,9 @@ type Account struct {
 	CreatedAt     int64              `json:"created_at" bson:"created_at"`
 	UpdatedAt     int64              `json:"updated_at" bson:"updated_at"`
 }
+
+type ShowAccount struct {
+	AccountType   string
+	Balance       float32
+	AccountStatus string
+}

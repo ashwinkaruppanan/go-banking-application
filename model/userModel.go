@@ -14,3 +14,16 @@ type User struct {
 	CreatedAt  int64              `json:"created_at" bson:"created_at"`
 	UpdatedAt  int64              `json:"updated_at" bson:"updated_at"`
 }
+
+type ShowUser struct {
+	Email      string
+	FullName   string
+	UserStatus int
+}
+
+type UpdateUser struct {
+	FullName        string `json:"full_name,omitempty"`
+	Email           string `json:"email,omitempty"`
+	CurrentPassword string `json:"current_password" validate:"required"`
+	NewPassword     string `json:"new_password,omitempty"`
+}

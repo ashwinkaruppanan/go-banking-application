@@ -10,12 +10,14 @@ import (
 	"ashwin.com/go-banking-project/database"
 	"ashwin.com/go-banking-project/model"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var accountCollection *mongo.Collection = database.OpenCollection(database.Client, "account")
+var transactionCollection *mongo.Collection = database.OpenCollection(database.Client, "transaction")
 
 func CreateAccount() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -29,7 +31,7 @@ func CreateAccount() gin.HandlerFunc {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 
-		user_id, _ := c.Cookie("user_id")
+		user_id := c.GetString("user_id")
 
 		id, _ := primitive.ObjectIDFromHex(user_id)
 		count, err := accountCollection.CountDocuments(ctx, bson.M{"user_id": id})
@@ -57,5 +59,232 @@ func CreateAccount() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, newAccount)
+	}
+}
+
+func GetAccount() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var dbDetails *model.Account
+		userID, err := primitive.ObjectIDFromHex(c.GetString("user_id"))
+		if err != nil {
+			log.Panic(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+		err = accountCollection.FindOne(ctx, bson.M{"user_id": userID}).Decode(&dbDetails)
+		defer cancel()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		showDetails := model.ShowAccount{
+			AccountType:   dbDetails.AccountType,
+			Balance:       dbDetails.Balance,
+			AccountStatus: dbDetails.AccountStatus,
+		}
+
+		c.JSON(http.StatusOK, showDetails)
+	}
+}
+
+func GetUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		userID, err := primitive.ObjectIDFromHex(c.GetString("user_id"))
+		if err != nil {
+			log.Panic(err)
+		}
+		var userDetails *model.User
+
+		err = userCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&userDetails)
+		defer cancel()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		showUser := model.ShowUser{
+			FullName:   userDetails.FullName,
+			Email:      userDetails.Email,
+			UserStatus: userDetails.UserStatus,
+		}
+
+		c.JSON(http.StatusOK, showUser)
+
+	}
+}
+
+func UpdateUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var dbDetails *model.User
+		var newDetails *model.UpdateUser
+
+		if err := c.ShouldBindJSON(&newDetails); err != nil {
+			log.Panic(err)
+		}
+
+		if validateErr := validator.New().Struct(newDetails); validateErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validateErr})
+			return
+		}
+
+		UserID, err := primitive.ObjectIDFromHex(c.GetString("user_id"))
+		if err != nil {
+			log.Panic(err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err = userCollection.FindOne(ctx, bson.M{"_id": UserID}).Decode(&dbDetails); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		defer cancel()
+
+		//verifypassword
+		isCorrect := VerifyPassword(newDetails.CurrentPassword, dbDetails.Password)
+		if !isCorrect {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Password"})
+			return
+		}
+
+		if newDetails.FullName != "" {
+			dbDetails.FullName = newDetails.FullName
+		}
+
+		if newDetails.Email != "" {
+			dbDetails.Email = newDetails.Email
+		}
+
+		if newDetails.NewPassword != "" {
+			newHashedPassword := HashPassword(newDetails.NewPassword)
+			dbDetails.Password = newHashedPassword
+		}
+
+		dbDetails.UpdatedAt = time.Now().Unix()
+
+		filter := bson.M{"_id": UserID}
+		update := bson.M{"$set": bson.M{
+			"email":      dbDetails.Email,
+			"full_name":  dbDetails.FullName,
+			"password":   dbDetails.Password,
+			"updated_at": dbDetails.UpdatedAt,
+		}}
+		_, err = userCollection.UpdateOne(ctx, filter, update)
+		defer cancel()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if newDetails.NewPassword != "" && newDetails.Email == "" && newDetails.FullName == "" {
+			c.JSON(http.StatusOK, "password updated!")
+			return
+		}
+		out := map[string]string{"full_name": dbDetails.FullName, "email": dbDetails.Email}
+
+		c.JSON(http.StatusOK, out)
+
+	}
+}
+
+func Transfer() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		UserId, err := primitive.ObjectIDFromHex(c.GetString("user_id"))
+		if err != nil {
+			log.Panic(err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+		var newTransactionData model.Transaction
+		var newTransaction *model.Transfer
+
+		if err := c.ShouldBindJSON(&newTransaction); err != nil {
+			log.Panic(err)
+		}
+		var senderDetails *model.Account
+		var receiverDetails *model.Account
+		err = accountCollection.FindOne(ctx, bson.M{"user_id": UserId}).Decode(&senderDetails)
+		defer cancel()
+		if err != nil {
+			log.Panic(err)
+		}
+		desAccountID, err := primitive.ObjectIDFromHex(newTransaction.DES_Account)
+		if err != nil {
+			log.Panic(err)
+		}
+		err = accountCollection.FindOne(ctx, bson.M{"_id": desAccountID}).Decode(&receiverDetails)
+		defer cancel()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid receiver account id"})
+			return
+		}
+
+		if senderDetails.AccountStatus != "ACTIVE" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "your account is under verfication"})
+			return
+		}
+
+		if senderDetails.Balance < newTransaction.Amount {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "insufficient balance"})
+			return
+		}
+
+		if receiverDetails.AccountStatus != "ACTIVE" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "receiver's account is under verfication"})
+			return
+		}
+
+		_, err = accountCollection.UpdateOne(ctx, bson.M{"_id": senderDetails.AccountID}, bson.M{
+			"$set": bson.M{
+				"balance": senderDetails.Balance - newTransaction.Amount,
+			}})
+		defer cancel()
+
+		if err != nil {
+			log.Panic(err)
+		}
+
+		_, err = accountCollection.UpdateOne(ctx, bson.M{"_id": receiverDetails.AccountID},
+			bson.M{"$set": bson.M{
+				"balance": receiverDetails.Balance + newTransaction.Amount,
+			}})
+		defer cancel()
+		if err != nil {
+			log.Panic(err)
+		}
+
+		des_id, err := primitive.ObjectIDFromHex(newTransaction.DES_Account)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		newTransactionData.TransactionID = primitive.NewObjectID()
+		newTransactionData.UserID = UserId
+		newTransactionData.TransactionTime = time.Now().Unix()
+		newTransactionData.SRC_Account = senderDetails.AccountID
+		newTransactionData.DES_Account = des_id
+		newTransactionData.Operation = "DEBIT"
+		newTransactionData.Amount = newTransaction.Amount
+
+		_, err = transactionCollection.InsertOne(ctx, newTransactionData)
+		defer cancel()
+		if err != nil {
+			log.Panic(err)
+		}
+
+		// newTransaction.UserID = receiverDetails.UserID
+		// newTransaction.Operation = "CREDIT"
+
+		// _, err = transactionCollection.InsertOne(ctx, newTransaction)
+		// defer cancel()
+		// if err != nil {
+		// 	log.Panic(err)
+		// }
+
+		c.JSON(http.StatusOK, gin.H{
+			"Transaction ID": newTransactionData.TransactionID,
+		})
+
 	}
 }

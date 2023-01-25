@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"time"
 
 	"ashwin.com/go-banking-project/helper"
 	"github.com/gin-gonic/gin"
@@ -30,7 +29,9 @@ func UserMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		c.SetCookie("user_id", claims.Uid, int(time.Now().Add(5*time.Minute).Unix()), "/", "localhost", false, true)
+		c.Set("name", claims.Name)
+		c.Set("user_id", claims.Uid)
+
 		c.Next()
 	}
 }

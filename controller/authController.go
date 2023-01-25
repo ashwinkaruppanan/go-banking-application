@@ -30,12 +30,13 @@ func HashPassword(password string) (hashPassword string) {
 }
 
 func VerifyPassword(loginPassword string, dbPassword string) bool {
+	out := true
 	err := bcrypt.CompareHashAndPassword([]byte(dbPassword), []byte(loginPassword))
 	if err != nil {
-		log.Fatal(err)
-		return false
+		// log.Panic(err)
+		out = false
 	}
-	return true
+	return out
 }
 
 func Signup() gin.HandlerFunc {
@@ -107,12 +108,12 @@ func Login() gin.HandlerFunc {
 		isPasswordCorrect := VerifyPassword(loginDetails.Password, dbDetails.Password)
 
 		if !isPasswordCorrect {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "wrong password"})
 			return
 		}
 
 		token := helper.GenerateToken(dbDetails.FullName, dbDetails.UserID.Hex(), dbDetails.UserType)
-		timeNow := time.Now()
+
 		// tokenDB := &model.Token{
 		// 	UserID:    dbDetails.UserID,
 		// 	Token:     token,
@@ -123,8 +124,8 @@ func Login() gin.HandlerFunc {
 		// if err != nil {
 		// 	log.Fatal(err)
 		// }
-		c.SetCookie("token", token, int(timeNow.Add(24*time.Hour).Unix()), "/", "localhost", false, true)
-
+		c.SetCookie("token", token, 60*60*3, "/", "localhost", false, true)
+		c.JSON(http.StatusOK, "Login Successful")
 	}
 
 }
