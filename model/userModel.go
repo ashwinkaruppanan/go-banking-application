@@ -27,3 +27,8 @@ type UpdateUser struct {
 	CurrentPassword string `json:"current_password" validate:"required"`
 	NewPassword     string `json:"new_password,omitempty"`
 }
+
+type ActivateUser struct {
+	UserID    string `json:"user_id"`
+	Operation int8   `json:"operation"`
+}

@@ -17,3 +17,8 @@ type ShowAccount struct {
 	Balance       float32
 	AccountStatus string
 }
+
+type ActivateAccount struct {
+	AccountID string `json:"account_id"`
+	Operation string `json:"operation"`
+}

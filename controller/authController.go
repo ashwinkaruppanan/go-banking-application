@@ -125,7 +125,7 @@ func Login() gin.HandlerFunc {
 		// 	log.Fatal(err)
 		// }
 		c.SetCookie("token", token, 60*60*3, "/", "localhost", false, true)
-		c.JSON(http.StatusOK, "Login Successful")
+		c.JSON(http.StatusOK, "Login Successfull")
 	}
 
 }

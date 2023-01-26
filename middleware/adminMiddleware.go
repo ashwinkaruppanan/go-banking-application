@@ -11,6 +11,7 @@ import (
 	"ashwin.com/go-banking-project/model"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -40,16 +41,25 @@ func AdminMiddleware() gin.HandlerFunc {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 
-		var dbRecord *model.User
-		err = userCollection.FindOne(ctx, bson.M{"user_id": claims.Uid}).Decode(&dbRecord)
-		defer cancel()
-
+		adminID, err := primitive.ObjectIDFromHex(claims.Uid)
 		if err != nil {
 			log.Panic(err)
 		}
 
+		var dbRecord *model.User
+		err = userCollection.FindOne(ctx, bson.M{"_id": adminID}).Decode(&dbRecord)
+		defer cancel()
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, "Admin id not found")
+			c.Abort()
+			return
+		}
+
 		if dbRecord.UserType != "ADMIN" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+
 			return
 		}
 		c.Set("user_id", claims.Uid)

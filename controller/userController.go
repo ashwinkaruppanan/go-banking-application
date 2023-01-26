@@ -202,6 +202,20 @@ func Transfer() gin.HandlerFunc {
 		if err := c.ShouldBindJSON(&newTransaction); err != nil {
 			log.Panic(err)
 		}
+
+		var sender *model.User
+
+		err = userCollection.FindOne(ctx, bson.M{"_id": UserId}).Decode(&sender)
+		defer cancel()
+		if err != nil {
+			log.Panic(err)
+		}
+
+		if sender.UserStatus != 1 {
+			c.JSON(http.StatusBadRequest, "your not allowed for transaction")
+			return
+		}
+
 		var senderDetails *model.Account
 		var receiverDetails *model.Account
 		err = accountCollection.FindOne(ctx, bson.M{"user_id": UserId}).Decode(&senderDetails)
@@ -209,6 +223,7 @@ func Transfer() gin.HandlerFunc {
 		if err != nil {
 			log.Panic(err)
 		}
+
 		desAccountID, err := primitive.ObjectIDFromHex(newTransaction.DES_Account)
 		if err != nil {
 			log.Panic(err)
@@ -227,6 +242,11 @@ func Transfer() gin.HandlerFunc {
 
 		if senderDetails.Balance < newTransaction.Amount {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "insufficient balance"})
+			return
+		}
+
+		if desAccountID == senderDetails.AccountID {
+			c.JSON(http.StatusBadRequest, "self transfer not allowed")
 			return
 		}
 
